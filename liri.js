@@ -2,7 +2,6 @@ require('dotenv').config();
 var keys = require('./keys');
 //twitter
 var Twitter = require('twitter');
-var tweetOffset = 0;
 //spotify
 var Spotify = require('node-spotify-api');
 var spotOffset = 0;
@@ -21,7 +20,7 @@ var userInput = process.argv.slice(2);
 
 if (userInput.length === 0) {
   // console.log(`Running Node`);
-  prompt();
+  helpInfo();
 } else {
   if (userInput[userInput.length - 1] === '-log') {
     logOutPut = true;
@@ -42,8 +41,8 @@ function doSwitch(api, searchStr) {
     case 'movies':
       getMovies(searchStr);
       break;
-    case 'help':
-      helpInfo();
+    case 'prompt':
+      prompt();
       break;
     case 'file':
       readFile();
@@ -66,27 +65,20 @@ function readFile() {
           doSwitch(search[0], search[1]);
         }, 1000);
       });
-
-      if (!doConti) doContinue();
-      // console.log(list);
     }
   });
 }
 
 function helpInfo() {
   console.group();
-  console.log(
-    `node liri.js [songs|tweets|movies|file|help] [search param] [-log]`
-  );
-  console.log(`             Params are optional`);
-  console.log(`             [songs] <title|artist|album|genera>`);
-  console.log(`             tweets <search text>`);
-  console.log(`             movies <title>`);
-  console.log(`             file <filepath>`);
-  console.log(`             Enter no params for prompt mode (inquirer)`);
-  console.log(
-    `             -log as last param to log results in ./logs/logcat.txt`
-  );
+  console.log(`node liri.js [songs|tweets|movies|file|prompt] [param] [-log]`);
+  console.log(`   \nOptions`);
+  console.log(`     songs <search_text> - Search Spotify for tracks`);
+  console.log(`     tweets <search_text> - Search Twitter for entered text`);
+  console.log(`     movies <title> - Search IMDB for movie title`);
+  console.log(`     file <filepath> - run searches from file`);
+  console.log(`     prompt - Inquired prompt`);
+  console.log(`     -log - log results in ./logs/logcat.txt`);
   console.groupEnd();
 }
 
@@ -131,12 +123,13 @@ function doContinue() {
   Inquirer.prompt([
     {
       type: 'confirm',
-      message: 'Would you like to continue?',
+      message: 'Would you like to search more?',
       name: 'continue',
     },
   ]).then((data) => {
     if (data.continue) prompt();
     else console.log('Good bye!');
+    return null;
   });
 }
 
@@ -144,40 +137,68 @@ function doContinue() {
 
 function fetchSpotify(search) {
   var Spotify = require('node-spotify-api');
+  var URL = `https://api.spotify.com/v1/search?`;
 
   var spotify = new Spotify(keys.spotify);
-
   var params = {
     type: 'track',
     query: search || 'Bruno Mars',
-    limit: 10,
-    offset: tweetOffset,
+    limit: 5,
+    offset: spotOffset,
   };
 
-  spotify.search(params, function(err, data) {
-    var strOut = separator;
-    if (err) {
-      strOut += `Error occurred: ${err}\n`;
-    }
-    data.tracks.items.forEach((e) => {
-      // strOut += e);
-      strOut += `  Song    : ${e.name}\n`;
-      strOut += `  Album   : ${e.album.name}\n`;
-      var art = '';
-      e.artists.forEach((artist) => {
-        art += artist.name + ', ';
+  var parsedParams = '';
+  for (var i in params) {
+    parsedParams += `${i}=${params[i]}&`;
+  }
+  URL += parsedParams;
+
+  spotify
+    .request(URL)
+    .then(function(data) {
+      var strOut = separator;
+
+      data.tracks.items.forEach((e) => {
+        strOut += `  Song    : ${e.name}\n`;
+        strOut += `  Album   : ${e.album.name}\n`;
+        var art = '';
+        e.artists.forEach((artist) => {
+          art += artist.name + ', ';
+        });
+        strOut += `  Artist  : ${art}\n`;
+        strOut += `  Preview : ${e.preview_url}\n`;
+        strOut += `  ----\n`;
       });
-      strOut += `  Artist  : ${art}\n`;
-      strOut += `  Preview : ${e.preview_url}\n`;
-      strOut += `  ----\n`;
+      strOut += separator;
+
+      console.log('\x1b[34m', strOut);
+
+      if (logOutPut) logOutPutFile(strOut);
+
+      getMoreSongs(params.limit, params.search);
+    })
+    .catch(function(err) {
+      console.error('Error occurred: ' + err);
     });
-    strOut += separator;
+}
 
-    console.log(strOut);
-
-    if (logOutPut) logOutPutFile(strOut);
-
-    if (doConti) doContinue();
+function getMoreSongs(limit, search) {
+  Inquirer.prompt([
+    {
+      type: 'confirm',
+      message: `Get Next ${limit} songs?`,
+      name: 'getNext',
+    },
+  ]).then((data) => {
+    if (data.getNext) {
+      spotOffset += limit;
+      fetchSpotify(search);
+      return null;
+    } else {
+      spotOffset = 0;
+      if (doConti) doContinue();
+      return null;
+    }
   });
 }
 
@@ -203,7 +224,7 @@ function getTweets(search) {
       });
     }
     strOut += separator;
-    console.log(strOut);
+    console.log('\x1b[32m', strOut);
     if (logOutPut) logOutPutFile(strOut);
 
     if (doConti) doContinue();
@@ -248,7 +269,7 @@ function getMovies(search) {
       }
     }
     strOut += separator;
-    console.log(strOut);
+    console.log('\x1b[35m', strOut);
     if (logOutPut) logOutPutFile(strOut);
 
     if (doConti) doContinue();
