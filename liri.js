@@ -1,27 +1,35 @@
 require('dotenv').config();
+var Request = require('request');
+var Inquirer = require('inquirer');
+var fs = require('fs');
 var keys = require('./keys');
+
 //twitter
 var Twitter = require('twitter');
 //spotify
 var Spotify = require('node-spotify-api');
 var spotOffset = 0;
 
-var Request = require('request');
-var Inquirer = require('inquirer');
-var fs = require('fs');
 var file = './logs/logcat.txt';
-
 var logOutPut = false;
 var doConti = true;
 var separator = `########\n`;
 
 var userInput = process.argv.slice(2);
-// console.log(userInput);
 
 if (userInput.length === 0) {
-  // console.log(`Running Node`);
   helpInfo();
 } else {
+  //-log must be last option
+  if (
+    userInput.indexOf('-log') !== -1 &&
+    userInput.indexOf('-log') !== userInput.length - 1
+  ) {
+    console.log(`\n  Invalid input\n`);
+    helpInfo();
+    return null;
+  }
+
   if (userInput[userInput.length - 1] === '-log') {
     logOutPut = true;
     var searchStr = arrayParser(userInput.slice(1, userInput.length - 1));
@@ -175,14 +183,14 @@ function fetchSpotify(search) {
 
       if (logOutPut) logOutPutFile(strOut);
 
-      getMoreSongs(params.limit, params.search);
+      getMoreSongs(params.limit, params.query, data.tracks.total);
     })
     .catch(function(err) {
       console.error('Error occurred: ' + err);
     });
 }
 
-function getMoreSongs(limit, search) {
+function getMoreSongs(limit, search, total) {
   Inquirer.prompt([
     {
       type: 'confirm',
@@ -190,8 +198,8 @@ function getMoreSongs(limit, search) {
       name: 'getNext',
     },
   ]).then((data) => {
-    if (data.getNext) {
-      spotOffset += limit;
+    spotOffset += limit;
+    if (data.getNext && spotOffset < total) {
       fetchSpotify(search);
       return null;
     } else {
