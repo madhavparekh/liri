@@ -10,7 +10,7 @@ var Twitter = require('twitter');
 var Spotify = require('node-spotify-api');
 var spotOffset = 0;
 
-var file = './logs/logcat.txt';
+var file = './logs/log.txt';
 var logOutPut = false;
 var doConti = true;
 var separator = `########\n`;
@@ -46,7 +46,7 @@ function doSwitch(api, searchStr) {
     case 'tweets':
       getTweets(searchStr);
       break;
-    case 'movies':
+    case 'movie':
       getMovies(searchStr);
       break;
     case 'prompt':
@@ -83,9 +83,9 @@ function helpInfo() {
   console.log(`   \nOptions`);
   console.log(`     songs <search_text> - Search Spotify for tracks`);
   console.log(`     tweets <search_text> - Search Twitter for entered text`);
-  console.log(`     movies <title> - Search IMDB for movie title`);
+  console.log(`     movie <title> - Search IMDB for movie title`);
   console.log(`     file <filepath> - run searches from file`);
-  console.log(`     prompt - Inquired prompt`);
+  console.log(`     prompt - Inquirer prompt`);
   console.log(`     -log - log results in ./logs/logcat.txt`);
   console.groupEnd();
 }
@@ -104,7 +104,7 @@ function prompt() {
     {
       type: 'list',
       message: 'Hi, I am Liri. I am ready to search for:',
-      choices: ['Tweets', 'Songs', 'Movies'],
+      choices: ['Tweets', 'Songs', 'Movie'],
       name: 'search',
     },
     {
@@ -120,7 +120,7 @@ function prompt() {
       case 'Songs':
         fetchSpotify(data.param);
         break;
-      case 'Movies':
+      case 'Movie':
         getMovies(data.param);
         break;
     }
@@ -131,7 +131,7 @@ function doContinue() {
   Inquirer.prompt([
     {
       type: 'confirm',
-      message: 'Would you like to search more?',
+      message: 'Continue with different search?',
       name: 'continue',
     },
   ]).then((data) => {
@@ -191,15 +191,25 @@ function fetchSpotify(search) {
 }
 
 function getMoreSongs(limit, search, total) {
+  var choices =
+    spotOffset > 0
+      ? [`Previous ${limit}`, `Next ${limit}`, `Done`]
+      : [`Next ${limit}`, `Done`];
+  var message = spotOffset > 0 ? `Go back/Get more songs?` : `Get more songs?`;
   Inquirer.prompt([
     {
-      type: 'confirm',
-      message: `Get Next ${limit} songs?`,
-      name: 'getNext',
+      type: 'list',
+      message: message,
+      choices: choices,
+      name: 'page',
     },
   ]).then((data) => {
-    spotOffset += limit;
-    if (data.getNext && spotOffset < total) {
+    if (data.page === `Next ${limit}` && spotOffset < total) {
+      spotOffset += limit;
+      fetchSpotify(search);
+      return null;
+    } else if (data.page === `Previous ${limit}` && spotOffset >= limit) {
+      spotOffset -= limit;
       fetchSpotify(search);
       return null;
     } else {
