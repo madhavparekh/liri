@@ -8,35 +8,32 @@ var keys = require('./keys');
 var Twitter = require('twitter');
 //spotify
 var Spotify = require('node-spotify-api');
-var spotOffset = 0;
-
-var file = './logs/log.txt';
+var spotOffset = 0; //pagination
+//Log results
+var file = './logs/log.txt'; //log file
 var logOutPut = false;
-var doConti = true;
+
+var doConti = true; //flag if user wants to continue with Inquirer prompt
+//search result separator
 var separator = `########\n`;
 
 var userInput = process.argv.slice(2);
 
-if (userInput.length === 0) {
+//'-log' must be last option
+if (
+  userInput.indexOf('-log') !== -1 &&
+  userInput.indexOf('-log') !== userInput.length - 1
+) {
+  console.log(`\n  Invalid input\n`);
   helpInfo();
-} else {
-  //-log must be last option
-  if (
-    userInput.indexOf('-log') !== -1 &&
-    userInput.indexOf('-log') !== userInput.length - 1
-  ) {
-    console.log(`\n  Invalid input\n`);
-    helpInfo();
-    return null;
-  }
-
-  if (userInput[userInput.length - 1] === '-log') {
-    logOutPut = true;
-    var searchStr = arrayParser(userInput.slice(1, userInput.length - 1));
-  } else var searchStr = arrayParser(userInput.slice(1));
-
-  doSwitch(userInput[0], searchStr);
 }
+
+if (userInput[userInput.length - 1] === '-log') {
+  logOutPut = true;
+  var searchStr = arrayParser(userInput.slice(1, userInput.length - 1));
+} else var searchStr = arrayParser(userInput.slice(1)); //go thru user input and concat in one string for API search
+
+doSwitch(userInput[0], searchStr);
 
 function doSwitch(api, searchStr) {
   switch (api) {
@@ -49,12 +46,16 @@ function doSwitch(api, searchStr) {
     case 'movie':
       getMovies(searchStr);
       break;
-    case 'prompt':
+    case 'prompt': //inquirer
       prompt();
       break;
     case 'file':
       readFile();
       doConti = false;
+      break;
+    default:
+      console.log(`\n  Invalid input\n`);
+      helpInfo();
       break;
   }
 }
@@ -68,7 +69,7 @@ function readFile() {
       var list = data.split('\r');
       list.forEach((e) => {
         var search = e.trim().split(',');
-
+        //time out for mutliple command lines from file
         setTimeout(() => {
           doSwitch(search[0], search[1]);
         }, 1000);
@@ -79,14 +80,14 @@ function readFile() {
 
 function helpInfo() {
   console.group();
-  console.log(`node liri.js [songs|tweets|movies|file|prompt] [param] [-log]`);
+  console.log(`node liri.js [songs|tweets|movie|file|prompt] [param] [-log]`);
   console.log(`   \nOptions`);
   console.log(`     songs <search_text> - Search Spotify for tracks`);
   console.log(`     tweets <search_text> - Search Twitter for entered text`);
   console.log(`     movie <title> - Search IMDB for movie title`);
   console.log(`     file <filepath> - run searches from file`);
   console.log(`     prompt - Inquirer prompt`);
-  console.log(`     -log - log results in ./logs/logcat.txt`);
+  console.log(`     -log - log results in ./logs/log.txt`);
   console.groupEnd();
 }
 
@@ -141,8 +142,6 @@ function doContinue() {
   });
 }
 
-// fetchSpotify('dil se');
-
 function fetchSpotify(search) {
   var Spotify = require('node-spotify-api');
   var URL = `https://api.spotify.com/v1/search?`;
@@ -183,7 +182,7 @@ function fetchSpotify(search) {
 
       if (logOutPut) logOutPutFile(strOut);
 
-      getMoreSongs(params.limit, params.query, data.tracks.total);
+      if (doConti) getMoreSongs(params.limit, params.query, data.tracks.total);
     })
     .catch(function(err) {
       console.error('Error occurred: ' + err);
@@ -234,7 +233,6 @@ function getTweets(search) {
     if (error) console.log(error);
     else {
       tweets.statuses.forEach((element, indx) => {
-        // console.log(element);
         strOut += `  Tweeted by  : ${element.user.name}\n`;
         strOut += `  Screen Name : ${element.user.screen_name}\n`;
         strOut += `  Tweet       : ${element.full_text}\n`;
@@ -295,6 +293,7 @@ function getMovies(search) {
 }
 
 function logOutPutFile(str) {
+  //adds time stamp to logged file
   str = new Date() + '\n' + str;
   fs.appendFile(file, str, (err) => {
     if (err) console.log(err);
